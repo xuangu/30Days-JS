@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const mime = require('mime');
+const chatServer = require('./lib/chat_server');
 
 var cache = {};
 
@@ -58,3 +59,5 @@ var server = http.createServer((request, response) => {
 server.listen(3000, () => {
   console.log("Server listening on port 3000.");
 });
+
+chatServer.listen(server);

@@ -26,9 +26,9 @@ function serverStatic(response, cache, absPath) {
   if (cache[absPath]) {
     sendFile(response, absPath, cache[absPath]);
   } else {
-    fs.exists(absPath, (exists) => {
+    fs.exists(absPath, function(exists) {
       if (exists) {
-        fs.readFile(absPath, (err, data) => {
+        fs.readFile(absPath, function(err, data) {
           if (err) {
             send404(response)
           } else {
@@ -43,7 +43,7 @@ function serverStatic(response, cache, absPath) {
   }
 }
 
-var server = http.createServer((request, response) => {
+var server = http.createServer(function(request, response) {
   var filePath = '';
 
   if (request.url == '/') {
@@ -56,7 +56,7 @@ var server = http.createServer((request, response) => {
   serverStatic(response, cache, absPath);
 });
 
-server.listen(3000, () => {
+server.listen(3000, function() {
   console.log("Server listening on port 3000.");
 });
 

@@ -1,17 +1,41 @@
 // 'use strict'
-
+// 注意如果要在node中使用es6的import语法，有两种方式，一种是用babel-node，需要配置项目的.babelrc文件，而是利用node的--experiment选项
 import http from 'http';
+
+let promise = new Promise(function(resolve, rej) {
+  console.log('before request');
+  // resolve("hello world");
+  // 注意以host为key值的url，不能加http前缀
+  http.get({host: 'baidu.com'}, function(res) {
+    res.on('data', (data) => {
+      console.log(data.toString());
+      resolve('request baidu success');
+    });
+  });
+});
+
+console.log('after promise');
+
+promise.then((value) => {
+    console.log('success');
+    console.log(value);
+  }, (rej) => {
+    console.log('err');
+  },
+);
+
+console.log('after then');
+
+//
+
+// import http from 'http';
 // http.request('http://localhost:3000/', (res) => {
 //   res.setEncoding('utf-8');
 //   console.log(res.toString());
 // });
 
 // 在访问本机代码时不能在localhost前加http://
-http.get({host: 'localhost', path: '/', port: 3000}, function(res) {
-  res.on('data', (data) => {
-    console.log(data.toString());
-  });
-});
+// });
 
 
 // export var hello = 'hello';

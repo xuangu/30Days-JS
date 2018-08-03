@@ -7,6 +7,6 @@
     "mime": "~1.2.7"
   },
   "scripts": {
-    "server": "babel-node server.js"
+    "server": "babel-node --inspect server.js"
   }
 }

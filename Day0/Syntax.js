@@ -1,5 +1,5 @@
 // 'use strict'
-// 注意如果要在node中使用es6的import语法，有两种方式，一种是用babel-node，需要配置项目的.babelrc文件，而是利用node的--experiment选项
+// 注意如果要在node中使用es6的import语法，有两种方式，一种是用babel-node，需要配置项目的.babelrc文件，而是利用node的---experimental-modules选项
 import http from 'http';
 
 let promise = new Promise(function(resolve, rej) {

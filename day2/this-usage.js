@@ -84,7 +84,7 @@ let obj = {
 
 let id = "not awesome";
 
-setTimeout(obj.cool.bind(obj), 100);
+setTimeout(obj.cool.bind(obj), 100);        // 打印 awesome
 
 针对上述问题，更进一步的研究，请仔细思考以下代码片段：
 代码片段1：
@@ -103,7 +103,6 @@ let obj = {
             console.log(self);      // 打印obj对象本身
             console.log(self.id);   // 打印awesome
         }
-
         nestedCoolFun();
     }
 };
@@ -118,13 +117,13 @@ let obj = {
     cool: function coolFn() {
 
         var self = this;
-        console.log(this);  // 打印timeout
+        console.log(this);  // 在node中打印timeout，在浏览器打印window
         console.log(self);  //
         function nestedCoolFun() {
             console.log("nested:====");
-            console.log(this);      // 打印全局
+            console.log(this);      // node和浏览器中都打印全局
             console.log(this.id);   // undefined
-            console.log(self);      // 打印timeout对象
+            console.log(self);      // 在node中打印timeout，在浏览器打印window
             console.log(self.id);   // 打印undefined
         }
 
@@ -135,6 +134,136 @@ let obj = {
 let id = "not awesome";
 
 setTimeout(obj.cool, 100);
+
+
+代码片段3
+let obj = {
+    id: "awesome",
+    cool: function coolFn() {
+
+        var self = this;
+        console.log(this);  // 打印obj对象本身
+        console.log(self);
+
+        function nestedCoolFun() {
+            console.log("nested:====");
+            console.log(this);      // 打印全局
+            console.log(this.id);   // undefined
+            console.log(self);      // 打印obj对象本身
+            console.log(self.id);   // 打印awesome
+        }
+        nestedCoolFun.bind(this);
+        nestedCoolFun.bind(obj);
+        nestedCoolFun();
+    }
+};
+
+obj.cool();
+
+
+// 代码片段4
+let obj = {
+    id: "awesome",
+    cool: function coolFn() {
+
+        var self = this;
+        console.log(this);  // 打印obj
+        console.log(self);  //
+        function nestedCoolFun() {
+            console.log("nested:====");
+            console.log(this);      // 打印全局
+            console.log(this.id);   // undefined
+            console.log(self);      // 打印obj
+            console.log(self.id);   // 打印awesome
+        }
+
+        nestedCoolFun();
+    }
+};
+
+let id = "not awesome";
+
+setTimeout(obj.cool.bind(obj), 100);        // 从代码片段2、3、4、来看，不管外边调用是什么样子的，对于内嵌的传统的函数声明来说，其内嵌函数内部的this永远指向全局对象
+
+
+// 代码片段5： 使用箭头函数，可以让内嵌的函数执行永远正确的绑定到其所在的作用域。
+let obj = {
+    id: "awesome",
+    cool: function coolFn() {
+
+        var self = this;
+        console.log(this);  // 打印obj
+        console.log(self);  //
+        var nestedCoolFun = () => {
+            console.log("nested:====");
+            console.log(this);      // 打印obj
+            console.log(this.id);   // awesome
+            console.log(self);      // 打印obj
+            console.log(self.id);   // 打印awesome
+        }
+
+        nestedCoolFun();
+    }
+};
+
+let id = "not awesome";
+
+setTimeout(obj.cool.bind(obj), 100);
+
+
+// 代码片段6
+let obj = {
+    id: "awesome",
+    cool: function coolFn() {
+
+        var self = this;
+        console.log(this);  // 打印obj
+        console.log(self);  //
+        var nestedCoolFun = () => {
+            console.log("nested:====");
+            console.log(this);      // 打印obj
+            console.log(this.id);   // awesome
+            console.log(self);      // 打印obj
+            console.log(self.id);   // 打印awesome
+        }
+
+        nestedCoolFun();
+    }
+};
+
+let id = "not awesome";
+
+setTimeout(() => {
+    obj.cool();
+}, 100);
+
+从上述代码来看，执行引擎根据不同的运行场景对函数内部的this赋予不同的上下文，对于全局函数来说，其this指针在严格模式下指向当前环境的全局对象，在node中，某个文件的全局对象默认是
+{}空对象，在浏览器中是window。对于某个对象的方法来说，当用某个对象去调用该方法时，node与浏览器的表现形式也是不一样的，当该对象是直接处于全局环境下对其方法进行调用时，浏览器和node
+都会讲该对象作为该函数的this值传进去，但是node和浏览器都不会将this传递给该函数中嵌套的函数中去（前提是该嵌套函数是以非箭头函数的形式定义的），以非箭头函数形式定义的内嵌函数中this永远
+指向全局的对象，在node中是global，在浏览器中是window。事实上node分为两种全局对象，一种是模块（文件）的全局对象，默认是{}空对象，一种是node的全局对象，用global标识，在node中的文件中
+如果是在非函数的环境下使用this变量，this变量指向的是一个空对象，如果是在函数中使用this指向的全局对象。代码片段如下：
+console.log(this);      // 空对象
+function baz() {
+    console.log(this);      // 全局global对象
+}
+baz();
+
+如果是在对象的方法中this，this指向其运行时环境，有可能是对象自己，也有可能是运行方法时所在的上下文，例如setTimeout中传递的this在node环境下就是timeout对象，在浏览器环境下是window，注意这里说的都是方法。
+这里说的方法是特指该函数是对象的一个属性。函数泛指任何不是一个对象的属性的函数，例如全局函数和方法的内嵌函数等等，都是函数（箭头函数不在此函数讨论范围中），函数中的this一定是指向全局global对象的。箭头函数中的this一定
+都是绑定到其定义的词法作用域的，而不是其运行时的上下文环境，是其定义时的上下文环境。另外bind函数只能绑定一层，对于内嵌函数中this不管用，见代码片段4。另外还需要注意绑定规则仅仅对方法管用，对于函数不管用，考虑代码片段7：
+
+代码片段7：
+var obj = {
+    id: "awesome"
+}
+
+function foo() {
+    console.log(this);          // global对象
+    console.log(this.id);       // undefined
+}
+
+foo.bind(obj);
+foo();      // undefined
 
 
 */
@@ -184,3 +313,70 @@ setTimeout(obj.cool, 100);
 // console.log(this);
 //
 // setTimeout(obj.cool.bind(this, 100);
+
+
+// let obj = {
+//     id: "awesome",
+//     cool: function coolFn() {
+//
+//         var self = this;
+//         console.log(this);  // 打印obj
+//         console.log(self);  //
+//         function nestedCoolFun() {
+//             console.log("nested:====");
+//             console.log(this);      // 打印全局
+//             console.log(this.id);   // undefined
+//             console.log(self);      // 打印obj
+//             console.log(self.id);   // 打印awesome
+//         }
+//
+//         nestedCoolFun();
+//     }
+// };
+//
+// let id = "not awesome";
+//
+// setTimeout(obj.cool.bind(obj), 100);
+//
+//
+//
+// let obj = {
+//     id: "awesome",
+//     cool: function coolFn() {
+//
+//         var self = this;
+//         console.log(this);  // 打印obj
+//         console.log(self);  //
+//         var nestedCoolFun = () => {
+//             console.log("nested:====");
+//             console.log(this);      // 打印obj
+//             console.log(this.id);   // awesome
+//             console.log(self);      // 打印obj
+//             console.log(self.id);   // 打印awesome
+//         }
+//
+//         nestedCoolFun();
+//     }
+// };
+//
+// let id = "not awesome";
+//
+// setTimeout(obj.cool.bind(obj), 100);
+
+// console.log(this);
+// function baz() {
+//     console.log(this);
+// }
+// baz();
+
+var obj = {
+    id: "awesome"
+}
+
+function foo() {
+    console.log(this);          // global对象
+    console.log(this.id);       // undefined
+}
+
+foo.bind(obj);
+foo();      // undefined

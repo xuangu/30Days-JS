@@ -7,10 +7,16 @@ class cl {
 
     foo() {
         console.log('foo' + this.a);
+        this.baz();
+        console.log(this.zz(5));  //  {yy: 5}
+        console.log(this.yy);  // 5
     };
 
     baz() {
         console.log('baz');
+        let mm = 10;
+        // this.zz = (x) => this.yy = 5
+        this.zz = (x) => (this.yy = 5);
     };
 }
 
@@ -18,14 +24,14 @@ let obj = new cl();
 obj.foo();
 
 // 在es7和babel中可以将上述代码写成
-class cl {
-    // a = 1;      // 支持定义属性
-    // static scl = 10;    // 指定定义类静态变量
-    //
-    // foo() {
-    //     console.log(this.a);
-    //     console.log(cl.scl);
-    // }
-
-    a = a;
-}
+// class cl {
+//     // a = 1;      // 支持定义属性
+//     // static scl = 10;    // 指定定义类静态变量
+//     //
+//     // foo() {
+//     //     console.log(this.a);
+//     //     console.log(cl.scl);
+//     // }
+//
+//     a = a;
+// }

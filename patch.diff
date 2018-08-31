@@ -1,0 +1,431 @@
+From 925e9cdeab27dc3c567c39a71572b3cadb6d0e42 Mon Sep 17 00:00:00 2001
+From: xuangu <guxuan324@gmail.com>
+Date: Tue, 3 Jul 2018 19:58:10 +0800
+Subject: [PATCH] =?UTF-8?q?=E5=AE=8C=E5=96=84day1=E7=9A=84=E8=81=8A?=
+ =?UTF-8?q?=E5=A4=A9=E5=AE=A4=E7=A8=8B=E5=BA=8F?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ Day1/lib/chat_server.js           | 111 ++++++++++++++++++++++++++++++++++++++
+ Day1/public/index.html            |   3 +-
+ Day1/public/javascript/chat.js    |  44 +++++++++++++++
+ Day1/public/javascript/chat_ui.js |  80 +++++++++++++++++++++++++++
+ Day1/public/style.css             |  25 +++++++++
+ Day1/server.js                    |   3 ++
+ 6 files changed, 265 insertions(+), 1 deletion(-)
+ create mode 100644 Day1/lib/chat_server.js
+ create mode 100644 Day1/public/javascript/chat.js
+ create mode 100644 Day1/public/javascript/chat_ui.js
+
+diff --git a/Day1/lib/chat_server.js b/Day1/lib/chat_server.js
+new file mode 100644
+index 0000000..8b030b6
+--- /dev/null
++++ b/Day1/lib/chat_server.js
+@@ -0,0 +1,111 @@
++const socketio = require('socket.io');
++
++var io;
++var guestNumber = 1;
++var nickNames = {};
++var namesUsed = [];
++var currentRoom = {};
++
++exports.listen = function(server) {
++  io = socketio.listen(server);
++  io.set('log level', 1);
++  io.sockets.on('connection', (socket) => {
++    guestNumber = assignGuestName(socket, guestNumber, nickNames, namesUsed);
++    joinRoom(socket, 'Lobby');
++
++    handleMessageBroadcasting(socket, nickNames);
++    handleNameChangeAttempts(socket, nickNames, namesUsed);
++    handleRoomJoining(socket);
++
++    socket.on('rooms', () => {
++      socket.emit('rooms', io.sockets.manager.rooms);
++    });
++
++    handleClientDisconection(socket, nickNames, namesUsed);
++  });
++};
++
++function assignGuestName(socket, guestNumber, nickNames, namesUsed) {
++  var name = 'Guest' + guestNumber;
++  nickNames[socket.id] = name;
++  socket.emit('nameResult', {
++    success: true,
++    name: name
++  });
++  namesUsed.push(name);
++  return guestNumber + 1;
++}
++
++function joinRoom(socket, room) {
++  // room相当于一个socket组的集合的标记
++  socket.join(room);
++  currentRoom[socket.id] = room;
++  socket.emit('joinResult', {room: room});
++  socket.broadcast.to(room).emit('message', {
++    text: nickNames[socket.id] + 'has joined ' + room + '.'
++  });
++
++  var usersInRoom = io.sockets.clients(room);
++  if (usersInRoom.length > 1) {
++    var usersInRoomSummary = 'Users currently in ' + room + ': ';
++    for (let index in usersInRoom) {
++      let userSocketId = usersInRoom[index].id;
++      if (userSocketId != socket.id) {
++        if (index > 1) {
++          usersInRoomSummary += ', ';
++        }
++        usersInRoomSummary += nickNames[userSocketId];
++      }
++    }
++    usersInRoomSummary += '.';
++    socket.emit('message', {text: usersInRoomSummary});
++  }
++}
++
++function handleNameChangeAttempts(socket, nickNames, namesUsed) {
++  socket.on('nameAttempt', (name) => {
++    if (name.indexOf('Guest') == 0) {
++      socket.emit('nameResult', {
++        success: false,
++        message: 'Names cannot begin with Guest'
++      });
++    } else {
++      if (namesUsed.indexOf(name) == -1) {
++        // 找到该socketid对应的前边的name
++        let preName = nickNames[socket.id];
++        let preNameIndex = namesUsed.indexOf(preName);
++        namesUsed.push(name);
++        nickNames[socket.id] = name;
++        delete namesUsed[preNameIndex];
++      } else {
++        socket.emit('nameResult', {
++          success: false,
++          message: 'That name already in use'
++        });
++      }
++    }
++  });
++}
++
++function handleMessageBroadcasting(socket) {
++  socket.on('message', (message) => {
++    socket.broadcast.to(message.room).emit('message', {
++      text: nickNames[socket.id] + ':' + message.text
++    });
++  })
++}
++
++function handleRoomJoining(socket) {
++  socket.on('join', (room) => {
++    socket.leave(currentRoom[socket.id]);
++    joinRoom(socket.room.newRoom);
++  });
++}
++
++function handleClientDisconection(socket) {
++  socket.on('disconnect', () => {
++    let nameIndex = namesUsed.indexOf(nickNames[socket.id]);
++    delete namesUsed[nameIndex];
++    delete nickNames[socket.id];
++  });
++}
+diff --git a/Day1/public/index.html b/Day1/public/index.html
+index 175bc4b..5aa8c85 100644
+--- a/Day1/public/index.html
++++ b/Day1/public/index.html
+@@ -8,6 +8,7 @@
+ 
+ <body>
+   <div id = 'content'>
++    <div id = 'room'></div>
+     <div id = 'room-list'></div>
+     <div id = 'messages'></div>
+ 
+@@ -25,7 +26,7 @@
+     </form>
+   </div>
+ 
+-  <script src = '/socket.io/index.js' type = 'text/javascript'></script>
++  <script src = '/socket.io/socket.io.js' type = 'text/javascript'></script>
+   <script src = 'http://code.jquery.com/jquery-1.8.0.min.js' type = 'text/javascript'></script>
+   <script src = '/javascript/chat.js' type = 'text/javascript'></script>
+   <script src = '/javascript/chat_ui.js' type = 'text/javascript'></script>
+diff --git a/Day1/public/javascript/chat.js b/Day1/public/javascript/chat.js
+new file mode 100644
+index 0000000..5dca614
+--- /dev/null
++++ b/Day1/public/javascript/chat.js
+@@ -0,0 +1,44 @@
++var Chat = function(socket) {
++  this.socket = socket;
++};
++
++Chat.prototype.sendMessage = function(room, text) {
++  var message = {
++    room: room,
++    text: text
++  };
++  this.socket.emit('message', message);
++};
++
++Chat.prototype.changeRoom = function(room) {
++  this.socket.emit('join', {
++    newRoom: room
++  });
++};
++// /nick guxuan; /join 2
++Chat.prototype.parseCommand = function(commandStr) {
++  var inputs = command.split(' ');
++  var command = inputs[0].substring(1, inputs[0].length - 1);
++
++  var message = '';
++
++  switch (command) {
++    case 'nick':
++      inputs.shift();
++      var name = inputs.join(' ');
++      this.socket.emit('nameAttempt', name);
++      break;
++
++    case 'join':
++      inputs.shift();
++      var room = inputs.join(' ');
++      this.changeRoom(room);
++      break;
++
++    default:
++      message = 'Unrecognized command.';
++      break;
++  }
++
++  return message;
++}
+diff --git a/Day1/public/javascript/chat_ui.js b/Day1/public/javascript/chat_ui.js
+new file mode 100644
+index 0000000..d6caff1
+--- /dev/null
++++ b/Day1/public/javascript/chat_ui.js
+@@ -0,0 +1,80 @@
++function divEscapedContentElement(message) {
++  return $('<div></div>').text(message);
++}
++
++function divSystemContentElement(message) {
++  return $('<div></div>').html('<i>' + message + '</i>');
++}
++
++function processUserInput(chatApp, socket) {
++  var message = $('#send-message').val();
++  var systemMessage;
++
++  if (message.charAt(0) == '/') {
++    systemMessage = chatApp.parseCommand(message);
++    if (systemMessage) {
++      $('#messages').append(divSystemContentElement(systemMessage));
++    }
++  } else {
++    chatApp.sendMessage($('#room').text(), message);
++    $('#messages').append(divEscapedContentElement(message));
++    $('#messages').scrollTop($(#messages).prop('scrollHeight'));
++  }
++
++  $('#send-message').val('');
++}
++
++var socket = io.connect();
++
++$(document).ready(function() {
++  var chatApp = new Chat(socket);
++
++  socket.on('nameResult', (result) => {
++    var message;
++
++    if (result.success) {
++      message = 'You are now known as ' + result.name + '.';
++    } else {
++      message = result.message;
++    }
++    $('#message').append(divSystemContentElement(message));
++  });
++
++  socket.on('joinResult', (result) => {
++    $('#room').text(result.room);
++    $('#messages').append(divSystemContentElement('Room changed.'));
++  });
++
++  socket.on('message', (message) => {
++    var newElement - $('<div></div>').text(message.text);
++    $('#messages').append(newElement);
++  });
++
++  socket.on('rooms', (rooms) => {
++    $('#room-list').empty();
++
++    for (let room in rooms) {
++      room = room.substring(1, room.length);
++      if (room != '') {
++        $('#room-list').append(divEscapedContentElement(room));
++      }
++    }
++
++    $('#room-list div').click(function() {
++      chatApp.parseCommand('/join' + $(this).text());
++      $('#send-message').focus();
++    });
++  });
++
++  setInterval(() => {
++    socket.emit('rooms');
++  }, 1000);
++
++  $('#send-messages').focus();
++
++  $('#send-form').submit(() => {
++    processUserInput(chatApp, socket);
++    return false;
++  });
++
++});
+diff --git a/Day1/public/style.css b/Day1/public/style.css
+index 7d3bd7d..12fb222 100644
+--- a/Day1/public/style.css
++++ b/Day1/public/style.css
+@@ -26,3 +26,28 @@ a {
+   margin-bottom: lem;
+   margin-right: 10px;
+ }
++
++#room-list {
++  float: right;
++  width: 100px;
++  height: 300px;
++  overflow: auto;
++}
++
++#room-list div {
++  border-bottom: 1px solid #eee;
++}
++
++#room-list div:hover {
++  background-color: #ddd;
++}
++
++#send-message {
++  width: 700px;
++  margin-bottom: lem;
++  margin-right: lem;
++}
++
++#help {
++  font: 10px "Lucida Grande", Helvetica, Arial, sans-serif;
++}
+diff --git a/Day1/server.js b/Day1/server.js
+index 444f8fc..90ce7b2 100644
+--- a/Day1/server.js
++++ b/Day1/server.js
+@@ -2,6 +2,7 @@ const http = require('http');
+ const fs = require('fs');
+ const path = require('path');
+ const mime = require('mime');
++const chatServer = require('./lib/chat_server');
+ 
+ var cache = {};
+ 
+@@ -58,3 +59,5 @@ var server = http.createServer((request, response) => {
+ server.listen(3000, () => {
+   console.log("Server listening on port 3000.");
+ });
++
++chatServer.listen(server);
+-- 
+2.15.2 (Apple Git-101.1)
+
+From 3f8af967bdc523a87fd403c7340cd0151a521556 Mon Sep 17 00:00:00 2001
+From: xuangu <guxuan324@gmail.com>
+Date: Tue, 31 Jul 2018 10:03:59 +0800
+Subject: [PATCH] =?UTF-8?q?websocket=E5=88=9D=E6=8E=A2?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ Day0/Syntax.js    | 36 ++++++++++++++++++++++++++++++------
+ Day0/package.json |  3 ++-
+ 2 files changed, 32 insertions(+), 7 deletions(-)
+
+diff --git a/Day0/Syntax.js b/Day0/Syntax.js
+index 062918b..66683c1 100644
+--- a/Day0/Syntax.js
++++ b/Day0/Syntax.js
+@@ -1,17 +1,41 @@
+ // 'use strict'
+-
++// 注意如果要在node中使用es6的import语法，有两种方式，一种是用babel-node，需要配置项目的.babelrc文件，而是利用node的--experiment选项
+ import http from 'http';
++
++let promise = new Promise(function(resolve, rej) {
++  console.log('before request');
++  // resolve("hello world");
++  // 注意以host为key值的url，不能加http前缀
++  http.get({host: 'baidu.com'}, function(res) {
++    res.on('data', (data) => {
++      console.log(data.toString());
++      resolve('request baidu success');
++    });
++  });
++});
++
++console.log('after promise');
++
++promise.then((value) => {
++    console.log('success');
++    console.log(value);
++  }, (rej) => {
++    console.log('err');
++  },
++);
++
++console.log('after then');
++
++//
++
++// import http from 'http';
+ // http.request('http://localhost:3000/', (res) => {
+ //   res.setEncoding('utf-8');
+ //   console.log(res.toString());
+ // });
+ 
+ // 在访问本机代码时不能在localhost前加http://
+-http.get({host: 'localhost', path: '/', port: 3000}, function(res) {
+-  res.on('data', (data) => {
+-    console.log(data.toString());
+-  });
+-});
++// });
+ 
+ 
+ // export var hello = 'hello';
+diff --git a/Day0/package.json b/Day0/package.json
+index e026a95..297c9a3 100644
+--- a/Day0/package.json
++++ b/Day0/package.json
+@@ -6,7 +6,8 @@
+   "scripts": {
+     "test": "echo \"Error: no test specified\" && exit 1",
+     "build": "babel Day0.js -d lib",
+-    "Day0": "babel-node Day0.js"
++    "Day0": "babel-node Day0.js",
++    "Syntax": "babel-node Syntax.js"
+   },
+   "devDependencies": {
+     "babel-cli": "^6.26.0"
+-- 
+2.15.2 (Apple Git-101.1)
+

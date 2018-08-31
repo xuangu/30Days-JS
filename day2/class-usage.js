@@ -21,6 +21,7 @@ class cl {
 }
 
 let obj = new cl();
+// let obj = cl();
 obj.foo();
 
 // 在es7和babel中可以将上述代码写成
